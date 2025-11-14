@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Disable default features and only enable what we need for a headless/minimal build
+# Disable default features and only enable what we need
 bevy = { version = "0.14", default-features = false, features = [
     "bevy_core_pipeline",
     "bevy_render",
@@ -15,9 +15,13 @@ bevy = { version = "0.14", default-features = false, features = [
     "bevy_state",
     "multi_threaded",
     "png",
-    "x11",
+    "x11",      # X11 support (default)
 ] }
 rand = "0.8"
+
+[features]
+default = []
+wayland = ["bevy/wayland"]  # Enable Wayland support for Sway/Manjaro
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
