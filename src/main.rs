@@ -262,8 +262,20 @@ fn setup(
 ) {
     info!("🌱 Initializing Vegan Monster Cultivation Game...");
 
-    // Spawn camera
-    commands.spawn(Camera2d);
+    // Create map data first to know dimensions
+    let map_data = MapData::new(20, 15);
+    let grid_scale = GridScale::default();
+
+    // Calculate camera position to center on the grid
+    // Grid center: (width * tile_size / 2, height * tile_size / 2)
+    let camera_x = (map_data.width as f32 * grid_scale.tile_size) / 2.0 - grid_scale.tile_size / 2.0;
+    let camera_y = (map_data.height as f32 * grid_scale.tile_size) / 2.0 - grid_scale.tile_size / 2.0;
+
+    // Spawn camera centered on grid
+    commands.spawn((
+        Camera2d,
+        Transform::from_xyz(camera_x, camera_y, 0.0),
+    ));
 
     // Create procedural meshes
     let player_mesh = meshes.add(Circle::new(16.0));
@@ -296,12 +308,9 @@ fn setup(
         stone_material,
     });
 
-    // Create and insert map data
-    let map_data = MapData::new(20, 15);
+    // Insert map data and grid scale (already created above)
     commands.insert_resource(map_data);
-
-    // Insert grid scale resource
-    commands.insert_resource(GridScale::default());
+    commands.insert_resource(grid_scale);
 
     // Insert player inventory
     commands.insert_resource(PlayerInventory::default());
