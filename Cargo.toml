@@ -1,0 +1,32 @@
+[package]
+name = "vegan-monster-game"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Disable default features and only enable what we need for a headless/minimal build
+bevy = { version = "0.14", default-features = false, features = [
+    "bevy_core_pipeline",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_winit",
+    "bevy_state",
+    "multi_threaded",
+    "png",
+    "x11",
+] }
+rand = "0.8"
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = true
+codegen-units = 1
