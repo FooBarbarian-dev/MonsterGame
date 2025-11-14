@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy::sprite::{ColorMaterial, MaterialMesh2dBundle};
+use bevy::sprite::{ColorMaterial, MeshMaterial2d};
+use bevy::render::mesh::Mesh2d;
 use rand::Rng;
 
 // ============================================================================
@@ -13,6 +14,7 @@ enum AppState {
     MainMenu,
     InGame,
     Encounter,
+    Paused,
 }
 
 // ============================================================================
@@ -261,12 +263,12 @@ fn setup(
     info!("🌱 Initializing Vegan Monster Cultivation Game...");
 
     // Spawn camera
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 
     // Create procedural meshes
-    let player_mesh = meshes.add(Circle::new(24.0));
-    let sprootling_mesh = meshes.add(Circle::new(20.0));
-    let moss_kneeler_mesh = meshes.add(Rectangle::new(16.0, 32.0));
+    let player_mesh = meshes.add(Circle::new(16.0));
+    let sprootling_mesh = meshes.add(Circle::new(12.0));
+    let moss_kneeler_mesh = meshes.add(Rectangle::new(10.0, 20.0));
     let tile_mesh = meshes.add(Rectangle::new(64.0, 64.0));
 
     // Create color materials
@@ -336,12 +338,9 @@ fn spawn_map(
             let world_y = y as f32 * grid_scale.tile_size;
 
             commands.spawn((
-                MaterialMesh2dBundle {
-                    mesh: meshes.tile_mesh.clone().into(),
-                    material,
-                    transform: Transform::from_xyz(world_x, world_y, 0.0),
-                    ..default()
-                },
+                Mesh2d(meshes.tile_mesh.clone()),
+                MeshMaterial2d(material),
+                Transform::from_xyz(world_x, world_y, 0.0),
                 MapTile { tile_type },
                 GridCoords::new(x as i32, y as i32),
             ));
@@ -366,12 +365,9 @@ fn spawn_player(
     let world_y = start_pos.y as f32 * grid_scale.tile_size;
 
     commands.spawn((
-        MaterialMesh2dBundle {
-            mesh: meshes.player_mesh.clone().into(),
-            material: materials.player_material.clone(),
-            transform: Transform::from_xyz(world_x, world_y, 10.0), // Z=10 for foreground
-            ..default()
-        },
+        Mesh2d(meshes.player_mesh.clone()),
+        MeshMaterial2d(materials.player_material.clone()),
+        Transform::from_xyz(world_x, world_y, 1.0), // Z=1.0 for entities
         Protagonist,
         start_pos,
         PurityScore::new(),
@@ -514,12 +510,9 @@ fn spawn_encounter_cultivar(
     };
 
     let cultivar_id = commands.spawn((
-        MaterialMesh2dBundle {
-            mesh: mesh.into(),
-            material,
-            transform: Transform::from_xyz(0.0, 200.0, 15.0), // Offset above player visually
-            ..default()
-        },
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
+        Transform::from_xyz(0.0, 200.0, 1.0), // Z=1.0 for entities
         Cultivar {
             id: rng.gen(),
             rank: 1,
