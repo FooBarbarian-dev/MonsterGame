@@ -154,11 +154,33 @@ struct Captured;
 #[derive(Resource)]
 struct GridScale {
     tile_size: f32,
+    /// Offset to center the map in the camera view
+    offset_x: f32,
+    offset_y: f32,
+}
+
+impl GridScale {
+    fn new(tile_size: f32, map_width: usize, map_height: usize) -> Self {
+        // Calculate offset to center the map around (0, 0)
+        let offset_x = -(map_width as f32 * tile_size) / 2.0;
+        let offset_y = -(map_height as f32 * tile_size) / 2.0;
+        Self {
+            tile_size,
+            offset_x,
+            offset_y,
+        }
+    }
+
+    fn grid_to_world(&self, grid_x: i32, grid_y: i32) -> (f32, f32) {
+        let world_x = grid_x as f32 * self.tile_size + self.offset_x;
+        let world_y = grid_y as f32 * self.tile_size + self.offset_y;
+        (world_x, world_y)
+    }
 }
 
 impl Default for GridScale {
     fn default() -> Self {
-        Self { tile_size: 64.0 }
+        Self::new(64.0, 20, 15)
     }
 }
 
@@ -332,8 +354,7 @@ fn spawn_map(
                 TileType::Stone => materials.stone_material.clone(),
             };
 
-            let world_x = x as f32 * grid_scale.tile_size;
-            let world_y = y as f32 * grid_scale.tile_size;
+            let (world_x, world_y) = grid_scale.grid_to_world(x as i32, y as i32);
 
             commands.spawn((
                 MaterialMesh2dBundle {
@@ -362,8 +383,7 @@ fn spawn_player(
 
     // Start player at grid position (5, 5)
     let start_pos = GridCoords::new(5, 5);
-    let world_x = start_pos.x as f32 * grid_scale.tile_size;
-    let world_y = start_pos.y as f32 * grid_scale.tile_size;
+    let (world_x, world_y) = grid_scale.grid_to_world(start_pos.x, start_pos.y);
 
     commands.spawn((
         MaterialMesh2dBundle {
@@ -387,8 +407,7 @@ fn sync_grid_to_transform(
     mut query: Query<(&GridCoords, &mut Transform), Changed<GridCoords>>,
 ) {
     for (coords, mut transform) in query.iter_mut() {
-        let world_x = coords.x as f32 * grid_scale.tile_size;
-        let world_y = coords.y as f32 * grid_scale.tile_size;
+        let (world_x, world_y) = grid_scale.grid_to_world(coords.x, coords.y);
 
         // Keep the original Z coordinate for layering
         transform.translation.x = world_x;
@@ -800,6 +819,8 @@ mod tests {
     fn test_grid_scale_default() {
         let grid_scale = GridScale::default();
         assert_eq!(grid_scale.tile_size, 64.0);
+        assert_eq!(grid_scale.offset_x, -640.0); // -(20 * 64) / 2
+        assert_eq!(grid_scale.offset_y, -480.0); // -(15 * 64) / 2
     }
 
     #[test]
@@ -957,7 +978,7 @@ mod tests {
     #[test]
     fn test_sync_grid_to_transform_system() {
         let mut app = App::new();
-        app.insert_resource(GridScale { tile_size: 64.0 });
+        app.insert_resource(GridScale::new(64.0, 20, 15));
 
         // Spawn an entity with GridCoords and Transform
         let entity = app.world_mut().spawn((
@@ -971,10 +992,12 @@ mod tests {
         // Run one update
         app.update();
 
-        // Check that transform was updated
+        // Check that transform was updated (with centering offset)
         let transform = app.world().entity(entity).get::<Transform>().unwrap();
-        assert_eq!(transform.translation.x, 128.0); // 2 * 64
-        assert_eq!(transform.translation.y, 192.0); // 3 * 64
+        let grid_scale = app.world().resource::<GridScale>();
+        let (expected_x, expected_y) = grid_scale.grid_to_world(2, 3);
+        assert_eq!(transform.translation.x, expected_x);
+        assert_eq!(transform.translation.y, expected_y);
     }
 
     #[test]
@@ -1113,41 +1136,45 @@ mod tests {
 
     #[test]
     fn test_grid_to_world_conversion() {
-        let grid_scale = GridScale { tile_size: 64.0 };
+        let grid_scale = GridScale::new(64.0, 20, 15);
 
-        let coords = GridCoords::new(0, 0);
-        let world_x = coords.x as f32 * grid_scale.tile_size;
-        let world_y = coords.y as f32 * grid_scale.tile_size;
-        assert_eq!(world_x, 0.0);
-        assert_eq!(world_y, 0.0);
+        // Test origin (with centering offset)
+        let (world_x, world_y) = grid_scale.grid_to_world(0, 0);
+        assert_eq!(world_x, -640.0); // -(20 * 64) / 2
+        assert_eq!(world_y, -480.0); // -(15 * 64) / 2
 
-        let coords = GridCoords::new(5, 3);
-        let world_x = coords.x as f32 * grid_scale.tile_size;
-        let world_y = coords.y as f32 * grid_scale.tile_size;
-        assert_eq!(world_x, 320.0);
-        assert_eq!(world_y, 192.0);
+        // Test center of map
+        let (world_x, world_y) = grid_scale.grid_to_world(10, 7);
+        assert_eq!(world_x, 0.0); // Map center should be at (0, 0)
+        assert_eq!(world_y, -32.0); // Slightly off center due to integer division
+
+        // Test another position
+        let (world_x, world_y) = grid_scale.grid_to_world(5, 3);
+        assert_eq!(world_x, -320.0); // 5 * 64 - 640
+        assert_eq!(world_y, -288.0); // 3 * 64 - 480
     }
 
     #[test]
     fn test_grid_to_world_negative_coords() {
-        let grid_scale = GridScale { tile_size: 64.0 };
+        let grid_scale = GridScale::new(64.0, 20, 15);
 
-        let coords = GridCoords::new(-2, -3);
-        let world_x = coords.x as f32 * grid_scale.tile_size;
-        let world_y = coords.y as f32 * grid_scale.tile_size;
-        assert_eq!(world_x, -128.0);
-        assert_eq!(world_y, -192.0);
+        let (world_x, world_y) = grid_scale.grid_to_world(-2, -3);
+        assert_eq!(world_x, -768.0); // -2 * 64 - 640
+        assert_eq!(world_y, -672.0); // -3 * 64 - 480
     }
 
     #[test]
     fn test_custom_grid_scale() {
-        let grid_scale = GridScale { tile_size: 32.0 };
+        let grid_scale = GridScale::new(32.0, 10, 10);
 
-        let coords = GridCoords::new(4, 4);
-        let world_x = coords.x as f32 * grid_scale.tile_size;
-        let world_y = coords.y as f32 * grid_scale.tile_size;
-        assert_eq!(world_x, 128.0);
-        assert_eq!(world_y, 128.0);
+        let (world_x, world_y) = grid_scale.grid_to_world(4, 4);
+        assert_eq!(world_x, -32.0); // 4 * 32 - 160
+        assert_eq!(world_y, -32.0); // 4 * 32 - 160
+
+        // Test that center is at (0, 0) for 10x10 map
+        let (world_x, world_y) = grid_scale.grid_to_world(5, 5);
+        assert_eq!(world_x, 0.0);
+        assert_eq!(world_y, 0.0);
     }
 
     // ========================================================================
