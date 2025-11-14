@@ -11,9 +11,11 @@ use rand::Rng;
 enum AppState {
     #[default]
     Loading,
+    #[allow(dead_code)]
     MainMenu,
     InGame,
     Encounter,
+    #[allow(dead_code)]
     Paused,
 }
 
@@ -28,7 +30,9 @@ struct Protagonist;
 /// Component for cultivar (plant-based monster) entities
 #[derive(Component)]
 struct Cultivar {
+    #[allow(dead_code)]
     id: u32,
+    #[allow(dead_code)]
     rank: u8,
     archetype: CultivarArchetype,
 }
@@ -38,7 +42,9 @@ struct Cultivar {
 enum CultivarArchetype {
     Sprootling,      // Circle, Thirst
     MossKneeler,     // Rectangle, Isolation
+    #[allow(dead_code)]
     GraspingVine,    // Quad, Aggression
+    #[allow(dead_code)]
     DynamiteBloom,   // Pulsing Circle, Instability
 }
 
@@ -92,6 +98,7 @@ impl MovementTimer {
 }
 
 /// Marker for when player is in an active encounter
+#[allow(dead_code)]
 #[derive(Component)]
 struct IsEncountering;
 
@@ -106,6 +113,7 @@ enum TileType {
 /// Component for map tiles
 #[derive(Component)]
 struct MapTile {
+    #[allow(dead_code)]
     tile_type: TileType,
 }
 
@@ -114,11 +122,14 @@ struct MapTile {
 enum Affliction {
     Thirst,
     Isolation,
+    #[allow(dead_code)]
     Overgrowth,
+    #[allow(dead_code)]
     Instability,
 }
 
 /// Resources that can be used for non-violent capture
+#[allow(dead_code)]
 #[derive(Component)]
 enum CaptureResource {
     Water,
@@ -262,20 +273,8 @@ fn setup(
 ) {
     info!("🌱 Initializing Vegan Monster Cultivation Game...");
 
-    // Create map data first to know dimensions
-    let map_data = MapData::new(20, 15);
-    let grid_scale = GridScale::default();
-
-    // Calculate camera position to center on the grid
-    // Grid center: (width * tile_size / 2, height * tile_size / 2)
-    let camera_x = (map_data.width as f32 * grid_scale.tile_size) / 2.0 - grid_scale.tile_size / 2.0;
-    let camera_y = (map_data.height as f32 * grid_scale.tile_size) / 2.0 - grid_scale.tile_size / 2.0;
-
-    // Spawn camera centered on grid
-    commands.spawn((
-        Camera2d,
-        Transform::from_xyz(camera_x, camera_y, 0.0),
-    ));
+    // Spawn camera at origin
+    commands.spawn(Camera2d);
 
     // Create procedural meshes
     let player_mesh = meshes.add(Circle::new(16.0));
@@ -308,9 +307,12 @@ fn setup(
         stone_material,
     });
 
-    // Insert map data and grid scale (already created above)
+    // Create and insert map data
+    let map_data = MapData::new(20, 15);
     commands.insert_resource(map_data);
-    commands.insert_resource(grid_scale);
+
+    // Insert grid scale resource
+    commands.insert_resource(GridScale::default());
 
     // Insert player inventory
     commands.insert_resource(PlayerInventory::default());
@@ -334,6 +336,10 @@ fn spawn_map(
 ) {
     info!("🗺️  Spawning map...");
 
+    // Calculate offset to center the grid around origin (0, 0)
+    let offset_x = -(map_data.width as f32 * grid_scale.tile_size) / 2.0 + grid_scale.tile_size / 2.0;
+    let offset_y = -(map_data.height as f32 * grid_scale.tile_size) / 2.0 + grid_scale.tile_size / 2.0;
+
     for y in 0..map_data.height {
         for x in 0..map_data.width {
             let tile_type = map_data.tiles[y][x];
@@ -343,8 +349,8 @@ fn spawn_map(
                 TileType::Stone => materials.stone_material.clone(),
             };
 
-            let world_x = x as f32 * grid_scale.tile_size;
-            let world_y = y as f32 * grid_scale.tile_size;
+            let world_x = x as f32 * grid_scale.tile_size + offset_x;
+            let world_y = y as f32 * grid_scale.tile_size + offset_y;
 
             commands.spawn((
                 Mesh2d(meshes.tile_mesh.clone()),
@@ -365,13 +371,19 @@ fn spawn_player(
     meshes: Res<ProceduralMeshes>,
     materials: Res<ProceduralMaterials>,
     grid_scale: Res<GridScale>,
+    map_data: Res<MapData>,
 ) {
     info!("🧑 Spawning protagonist...");
 
-    // Start player at grid position (5, 5)
-    let start_pos = GridCoords::new(5, 5);
-    let world_x = start_pos.x as f32 * grid_scale.tile_size;
-    let world_y = start_pos.y as f32 * grid_scale.tile_size;
+    // Start player at grid position (10, 7) - center of 20x15 grid
+    let start_pos = GridCoords::new(10, 7);
+
+    // Calculate offset to center the grid around origin (0, 0)
+    let offset_x = -(map_data.width as f32 * grid_scale.tile_size) / 2.0 + grid_scale.tile_size / 2.0;
+    let offset_y = -(map_data.height as f32 * grid_scale.tile_size) / 2.0 + grid_scale.tile_size / 2.0;
+
+    let world_x = start_pos.x as f32 * grid_scale.tile_size + offset_x;
+    let world_y = start_pos.y as f32 * grid_scale.tile_size + offset_y;
 
     commands.spawn((
         Mesh2d(meshes.player_mesh.clone()),
@@ -389,11 +401,16 @@ fn spawn_player(
 /// Synchronize grid coordinates to transform for rendering
 fn sync_grid_to_transform(
     grid_scale: Res<GridScale>,
+    map_data: Res<MapData>,
     mut query: Query<(&GridCoords, &mut Transform), Changed<GridCoords>>,
 ) {
+    // Calculate offset to center the grid around origin (0, 0)
+    let offset_x = -(map_data.width as f32 * grid_scale.tile_size) / 2.0 + grid_scale.tile_size / 2.0;
+    let offset_y = -(map_data.height as f32 * grid_scale.tile_size) / 2.0 + grid_scale.tile_size / 2.0;
+
     for (coords, mut transform) in query.iter_mut() {
-        let world_x = coords.x as f32 * grid_scale.tile_size;
-        let world_y = coords.y as f32 * grid_scale.tile_size;
+        let world_x = coords.x as f32 * grid_scale.tile_size + offset_x;
+        let world_y = coords.y as f32 * grid_scale.tile_size + offset_y;
 
         // Keep the original Z coordinate for layering
         transform.translation.x = world_x;
@@ -960,10 +977,11 @@ mod tests {
     fn test_sync_grid_to_transform_system() {
         let mut app = App::new();
         app.insert_resource(GridScale { tile_size: 64.0 });
+        app.insert_resource(MapData::new(20, 15));
 
         // Spawn an entity with GridCoords and Transform
         let entity = app.world_mut().spawn((
-            GridCoords::new(2, 3),
+            GridCoords::new(10, 7),  // Center of 20x15 grid
             Transform::from_xyz(0.0, 0.0, 0.0),
         )).id();
 
@@ -974,9 +992,12 @@ mod tests {
         app.update();
 
         // Check that transform was updated
+        // Grid is centered around origin, position (10, 7) maps to world (32, 0)
+        // offset_x = -(20*64)/2 + 64/2 = -608, so 10*64 + (-608) = 640 - 608 = 32
+        // offset_y = -(15*64)/2 + 64/2 = -448, so 7*64 + (-448) = 448 - 448 = 0
         let transform = app.world().entity(entity).get::<Transform>().unwrap();
-        assert_eq!(transform.translation.x, 128.0); // 2 * 64
-        assert_eq!(transform.translation.y, 192.0); // 3 * 64
+        assert_eq!(transform.translation.x, 32.0);
+        assert_eq!(transform.translation.y, 0.0);
     }
 
     #[test]
